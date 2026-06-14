@@ -193,6 +193,7 @@ My spec never went into details, so I suppose the way of implementation diverged
 **Recommendations for embeddding models that fit my chunking size and domain.**
 - *What I changed or overrode:*
 **I used what was recommeneded switching from a chunk size of words to chunk size of characters.**
+
 **Instance 2**
 
 - *What I gave the AI:*
