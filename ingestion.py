@@ -27,21 +27,60 @@ SOURCES = {
     19: "https://fiuurj.fiu.edu/publishing-process/"
 }
 
-def clean_text (html_context):
-    # Strips HTML boilerplate, leaving clean , contiguous text blocks
-    soup = BeautifulSoup(html_context, 'html.parser')
-
-    for element in soup(["script", "style", "header", "footer", "nav"]):
-        element.decompose()
+def clean_text(html_content):
+    """
+    Strips navigation boilerplate, menus, sidebars, and empty elements
+    to isolate informative paragraphs.
+    """
+    soup = BeautifulSoup(html_content, 'html.parser')
     
-    text = soup.get_text(separator=' ')
+    # 1. Broadly decompose known boilerplate and layout containers
+    boilerplate_selectors = [
+        "script", "style", "header", "footer", "nav", "aside",
+        ".navigation", ".menu", ".sidebar", ".footer", ".header",
+        "#navigation", "#sidebar", "#footer", "#header",
+        ".menu-container", ".nav-menu", ".breadcrumbs", ".search-box",
+        ".fiu-footer", ".fiu-header", "#fiu-responsive-menu"
+    ]
+    
+    for selector in boilerplate_selectors:
+        # Handle both raw tags and CSS classes/IDs
+        for element in soup.select(selector):
+            element.decompose()
 
-    # Collapse multiple whitespaces/newlines into clean spacing
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+    # 2. Try to pinpoint the primary content container if it exists
+    # Many FIU and university pages wrap main text in these semantic structures
+    content_areas = soup.select("main, article, #main-content, .main-content, #content, .content")
+    
+    if content_areas:
+        # If we found a dedicated main content wrapper, prioritize it
+        working_soup = BeautifulSoup(" ".join([str(c) for c in content_areas]), 'html.parser')
+    else:
+        # Fallback to the cleaned body if no clear main wrapper is defined
+        working_soup = soup
+
+    # 3. Target informative blocks (paragraphs, list items, headers)
+    text_blocks = []
+    # Gathering text from elements likely to hold actual academic/club data
+    for element in working_soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'li', 'td']):
+        block_text = element.get_text(separator=' ').strip()
+        
+        # Clean up internal whitespace anomalies
+        block_text = re.sub(r'\s+', ' ', block_text)
+        
+        # Filter out short text fragments (e.g., "Home", "Apply Now", "Next")
+        # An informative phrase usually requires more than 4 words
+        if len(block_text.split()) > 4:
+            text_blocks.append(block_text)
+            
+    # Combine the high-quality text blocks with clean paragraph breaks
+    cleaned_text = "\n\n".join(text_blocks)
+    return cleaned_text
 
 def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
-    # Split text programatically using sliding character windows
+    """ 
+    Split text programatically using sliding character windows
+    """
     chunks = []
     start = 0
     while start < len(text):
@@ -53,8 +92,10 @@ def chunk_text(text, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
             break
     return chunks
 
-# Main function that is ran by the script
 def run_ingestion():
+    """
+    Main function that is ran by the script
+    """
     all_document_chunks = []
     print("🍔 Starting Web Ingestion and Scraping... 🍽️")
 
